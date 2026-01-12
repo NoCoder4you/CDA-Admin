@@ -3,7 +3,9 @@ import json
 import os
 from discord.ext import commands
 
-SERVER_DATA_FILE = "../server.json"
+from COGS.paths import data_path
+
+SERVER_DATA_FILE = data_path("server.json")
 
 class RoleDeletionCog(commands.Cog):
     def __init__(self, bot):
@@ -16,7 +18,7 @@ class RoleDeletionCog(commands.Cog):
             return
 
         # Load JSON data
-        with open(SERVER_DATA_FILE, "r") as f:
+        with open(SERVER_DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         if "user_roles" not in data:
@@ -30,7 +32,7 @@ class RoleDeletionCog(commands.Cog):
             data["user_roles"] = [r for r in data["user_roles"] if r["role_id"] != role.id]
 
             # Save updated JSON
-            with open(SERVER_DATA_FILE, "w") as f:
+            with open(SERVER_DATA_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
 
 async def setup(bot):

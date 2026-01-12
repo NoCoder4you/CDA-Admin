@@ -4,12 +4,13 @@ import json
 import os
 import time
 from discord.ext import commands, tasks
+from COGS.paths import data_path
 
 class AutoRoleUpdater(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.roles_file_path = "/home/pi/discord-bots/bots/CDA Admin/rolesbadges.json"
-        self.server_data_path = "/home/pi/discord-bots/bots/CDA Admin/server.json"
+        self.roles_file_path = data_path("rolesbadges.json")
+        self.server_data_path = data_path("server.json")
         self.roles_data = self.load_roles_data()
         self.server_data = self.load_server_data()
         self.verified_role_id = 1277489459226738808
@@ -21,7 +22,7 @@ class AutoRoleUpdater(commands.Cog):
         """Load the role mapping from JSON."""
         if os.path.exists(self.roles_file_path):
             try:
-                with open(self.roles_file_path, "r") as file:
+                with open(self.roles_file_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
                     return data.get("roles", {})
             except json.JSONDecodeError:
@@ -33,7 +34,7 @@ class AutoRoleUpdater(commands.Cog):
         """Load the list of verified users from JSON."""
         if os.path.exists(self.server_data_path):
             try:
-                with open(self.server_data_path, "r") as file:
+                with open(self.server_data_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
                     return data if "verified_users" in data else {"verified_users": []}
             except json.JSONDecodeError:

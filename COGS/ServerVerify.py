@@ -8,15 +8,16 @@ import time
 import random
 import string
 from COGS.BotCheck import is_verified
+from COGS.paths import data_path
 
 
 class HabboVerifyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.roles_file_path = "/home/pi/discord-bots/bots/CDA Admin/rolesbadges.json"
+        self.roles_file_path = data_path("rolesbadges.json")
         self.roles_data = self.load_roles_data()
-        self.server_data_path = "/home/pi/discord-bots/bots/CDA Admin/server.json"
-        self.verification_file_path = "/home/pi/discord-bots/bots/CDA Admin/verification_codes.json"
+        self.server_data_path = data_path("server.json")
+        self.verification_file_path = data_path("verification_codes.json")
         self.server_data = self.load_server_data()
         self.verification_data = self.load_verification_codes()
         self.cleanup_task.start()
@@ -24,7 +25,7 @@ class HabboVerifyCog(commands.Cog):
     def load_roles_data(self):
         if os.path.exists(self.roles_file_path):
             try:
-                with open(self.roles_file_path, "r") as file:
+                with open(self.roles_file_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
                     roles_data = data.get("roles", {})
                     if not isinstance(roles_data, dict):
@@ -50,7 +51,7 @@ class HabboVerifyCog(commands.Cog):
     def load_server_data(self):
         if os.path.exists(self.server_data_path):
             try:
-                with open(self.server_data_path, "r") as file:
+                with open(self.server_data_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
                     if "verified_users" not in data:
                         data["verified_users"] = []
@@ -65,13 +66,13 @@ class HabboVerifyCog(commands.Cog):
         return {"verified_users": [], "channels": {"verification": None}}
 
     def save_server_data(self):
-        with open(self.server_data_path, "w") as file:
+        with open(self.server_data_path, "w", encoding="utf-8") as file:
             json.dump(self.server_data, file, indent=4)
 
     def load_verification_codes(self):
         if os.path.exists(self.verification_file_path):
             try:
-                with open(self.verification_file_path, "r") as file:
+                with open(self.verification_file_path, "r", encoding="utf-8") as file:
                     return json.load(file)
             except json.JSONDecodeError:
                 print(f"Error decoding {self.verification_file_path}. Ensure it's valid JSON.")
@@ -79,7 +80,7 @@ class HabboVerifyCog(commands.Cog):
         return {"verification_data": {}}
 
     def save_verification_codes(self):
-        with open(self.verification_file_path, "w") as file:
+        with open(self.verification_file_path, "w", encoding="utf-8") as file:
             json.dump(self.verification_data, file, indent=4)
 
     @tasks.loop(minutes=2.5)

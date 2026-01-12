@@ -3,7 +3,9 @@ from discord.ext import commands
 from discord import app_commands, Interaction, ui
 import json
 
-SERVER_JSON_PATH = "/home/pi/discord-bots/bots/CDA Admin/server.json"
+from COGS.paths import data_path
+
+SERVER_JSON_PATH = data_path("server.json")
 REQUEST_CHANNEL_ID = 1249491219348852828  # Channel to send the request embed
 
 def load_server_json():

@@ -1,10 +1,11 @@
 import json
-from pathlib import Path
 
 import discord
 from discord.ext import commands
 
-_ADMIN_JSON = Path("/home/pi/discord-bots/bots/CDA Admin/admins.json")           # <-- keep the JSON you created here
+from COGS.paths import data_path
+
+_ADMIN_JSON = data_path("admins.json")           # <-- keep the JSON you created here
 
 # --------------------------------------------------------------------------- #
 # helpers                                                                     #
