@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 
-NICEBLOCK_FILE = "niceblock_users.json"
+NICEBLOCK_FILE = "../niceblock_users.json"
 
 def load_enabled_users():
     if not os.path.isfile(NICEBLOCK_FILE):

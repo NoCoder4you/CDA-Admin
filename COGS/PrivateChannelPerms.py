@@ -194,7 +194,7 @@ class InviteUserModal(discord.ui.Modal, title="Invite User"):
         if invited_user.id not in server_data["user_channels"][owner_id_str]["invited_users"]:
             server_data["user_channels"][owner_id_str]["invited_users"].append(invited_user.id)
 
-            with open("server.json", "w") as f:
+            with open("../server.json", "w") as f:
                 json.dump(server_data, f, indent=4)
 
             await self.channel.set_permissions(invited_user, read_messages=True, send_messages=True)
@@ -246,7 +246,7 @@ class RemoveUserModal(discord.ui.Modal, title="Remove User"):
         if "invited_users" in server_data["user_channels"][owner_id_str] and removed_user.id in server_data["user_channels"][owner_id_str]["invited_users"]:
             server_data["user_channels"][owner_id_str]["invited_users"].remove(removed_user.id)
 
-            with open("server.json", "w") as f:
+            with open("../server.json", "w") as f:
                 json.dump(server_data, f, indent=4)
 
             # Revoke permissions to remove user from the channel

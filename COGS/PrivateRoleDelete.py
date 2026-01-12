@@ -3,7 +3,7 @@ import json
 import os
 from discord.ext import commands
 
-SERVER_DATA_FILE = "server.json"
+SERVER_DATA_FILE = "../server.json"
 
 class RoleDeletionCog(commands.Cog):
     def __init__(self, bot):

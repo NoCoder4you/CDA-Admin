@@ -4,7 +4,7 @@ import os
 from discord.ext import commands
 from discord import ui
 
-SERVER_DATA_FILE = "server.json"
+SERVER_DATA_FILE = "../server.json"
 
 # Define role limits (role_id: max roles a user with that role can create)
 ROLE_LIMITS = {
