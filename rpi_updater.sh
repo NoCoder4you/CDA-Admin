@@ -3,17 +3,16 @@ set -euo pipefail
 
 REPO_URL="https://github.com/NoCoder4you/CDA-Admin.git"
 
-BASE="/home/pi/discord-bots/bots/CDA Admin"
-TARGET="$BASE"
-CACHE="$BASE/.repo_cache"
-BRANCH=""
+TARGET="/home/pi/discord-bots/bots/CDA Admin"
+CACHE_BASE="/home/pi/discord-bots/.repo_cache"
+CACHE="$CACHE_BASE/CDA-Admin"
 
 echo "[Updater] Cache:  $CACHE"
 echo "[Updater] Target: $TARGET"
 echo "[Updater] Repo:   $REPO_URL"
 echo "----------------------------------"
 
-mkdir -p "$BASE"
+mkdir -p "$TARGET" "$CACHE_BASE"
 
 if [[ ! -d "$CACHE/.git" ]]; then
   echo "[Updater] Creating cache..."
@@ -22,24 +21,35 @@ if [[ ! -d "$CACHE/.git" ]]; then
 else
   echo "[Updater] Updating cache..."
   git -C "$CACHE" fetch --all --prune
-  BRANCH="$(git -C "$CACHE" remote show origin | sed -n 's/.*HEAD branch: //p')"
-  [[ -z "$BRANCH" ]] && BRANCH="main"
-  git -C "$CACHE" reset --hard "origin/$BRANCH"
-  git -C "$CACHE" submodule update --init --recursive
 fi
 
-CONTENT_ROOT="$CACHE"
+# Determine default branch robustly
+BRANCH="$(git -C "$CACHE" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)"
+if [[ -z "${BRANCH:-}" ]]; then
+  # fallback if origin/HEAD isn't set
+  if git -C "$CACHE" show-ref --verify --quiet refs/remotes/origin/main; then
+    BRANCH="main"
+  elif git -C "$CACHE" show-ref --verify --quiet refs/remotes/origin/master; then
+    BRANCH="master"
+  else
+    BRANCH="main"
+  fi
+fi
 
-echo "[Updater] Content root: $CONTENT_ROOT"
+echo "[Updater] Branch: $BRANCH"
+
+git -C "$CACHE" reset --hard "origin/$BRANCH"
+git -C "$CACHE" submodule update --init --recursive
+
 echo "----------------------------------"
+echo "[Updater] Syncing files..."
 
-mkdir -p "$TARGET"
 rsync -a --delete \
   --exclude ".git" \
   --exclude ".github" \
   --exclude ".gitmodules" \
-  --exclude "config.json" \
-  --exclude "JSON/admin_settings.json" \
-  "$CONTENT_ROOT/" "$TARGET/"
+  --exclude ".repo_cache" \
+  --exclude "venv" --exclude ".venv" \
+  "$CACHE/" "$TARGET/"
 
 echo "[Updater] Sync complete -> $TARGET"
