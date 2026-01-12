@@ -5,26 +5,27 @@ import aiohttp
 import json
 import os
 from COGS.BotCheck import has_authorised_role
+from COGS.paths import data_path
 
 
 class BanOnSightCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.verification_file = "/home/pi/discord-bots/bots/CDA Admin/server.json"
-        self.punishment_file = "/home/pi/discord-bots/bots/CDA Admin/punishment.json"
+        self.verification_file = data_path("server.json")
+        self.punishment_file = data_path("punishment.json")
         self.verified_role_id = 1320054879477170299  # Replace with your Verified role ID
         self.load_data()
 
     def load_data(self):
         """Load verification and punishment data."""
         if os.path.exists(self.verification_file):
-            with open(self.verification_file, "r") as file:
+            with open(self.verification_file, "r", encoding="utf-8") as file:
                 self.verification_data = json.load(file)
         else:
             self.verification_data = {"verified_users": [], "channels": {}}
 
         if os.path.exists(self.punishment_file):
-            with open(self.punishment_file, "r") as file:
+            with open(self.punishment_file, "r", encoding="utf-8") as file:
                 self.punishment_data = json.load(file)
         else:
             self.punishment_data = {"banned_users": {"BoS": {}, "DNH": {}, "NP": {}}, "banned_groups": []}
@@ -36,7 +37,7 @@ class BanOnSightCog(commands.Cog):
 
     def save_punishment_data(self):
         """Save punishment data back to the file."""
-        with open(self.punishment_file, "w") as file:
+        with open(self.punishment_file, "w", encoding="utf-8") as file:
             json.dump(self.punishment_data, file, indent=4)
 
     @commands.Cog.listener()

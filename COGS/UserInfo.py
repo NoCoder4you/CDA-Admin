@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
 
+from COGS.paths import data_path
 
 # Donator Role Color Mapping (HEX)
 DONATOR_COLORS = {
@@ -19,10 +20,10 @@ DONATOR_COLORS = {
 }
 
 # Load server.json and rolesbadges.json
-with open("/home/pi/discord-bots/bots/CDA Admin/server.json", "r") as server_file:
+with open(data_path("server.json"), "r", encoding="utf-8") as server_file:
     server_data = json.load(server_file)
 
-with open("/home/pi/discord-bots/bots/CDA Admin/rolesbadges.json", "r") as roles_file:
+with open(data_path("rolesbadges.json"), "r", encoding="utf-8") as roles_file:
     roles_data = json.load(roles_file)
 
 class UserInfoCog(commands.Cog):

@@ -4,6 +4,8 @@ from discord.ext import commands
 import json
 import os
 
+from COGS.paths import data_path
+
 # Role IDs
 ALLOWED_ROLES = {1315693406336450570, 1248310818693582920}
 VERIFIED_ROLE_ID = 1277489459226738808
@@ -12,16 +14,16 @@ AWAITING_ROLE_ID = 1248310200939581594
 class VerificationAdminReset(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.server_data_path = "/home/pi/discord-bots/bots/CDA Admin/server.json"
+        self.server_data_path = data_path("server.json")
 
     def load_server_data(self):
         if os.path.exists(self.server_data_path):
-            with open(self.server_data_path, "r") as file:
+            with open(self.server_data_path, "r", encoding="utf-8") as file:
                 return json.load(file)
         return {"verified_users": [], "channels": {"verification": None}}
 
     def save_server_data(self, data):
-        with open(self.server_data_path, "w") as file:
+        with open(self.server_data_path, "w", encoding="utf-8") as file:
             json.dump(data, file, indent=4)
 
     def has_admin_role(self, member: discord.Member) -> bool:

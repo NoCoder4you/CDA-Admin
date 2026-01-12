@@ -4,16 +4,18 @@ import asyncio
 import json
 import os
 
-NICEBLOCK_FILE = "../niceblock_users.json"
+from COGS.paths import data_path
+
+NICEBLOCK_FILE = data_path("niceblock_users.json")
 
 def load_enabled_users():
     if not os.path.isfile(NICEBLOCK_FILE):
         return []
-    with open(NICEBLOCK_FILE, "r") as f:
+    with open(NICEBLOCK_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
 def save_enabled_users(users):
-    with open(NICEBLOCK_FILE, "w") as f:
+    with open(NICEBLOCK_FILE, "w", encoding="utf-8") as f:
         json.dump(users, f)
 
 class NiceBlock(commands.Cog):

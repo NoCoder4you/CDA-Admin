@@ -3,12 +3,14 @@ from discord import app_commands
 import discord
 from discord.ext import commands
 
-SERVER_FILE = "../server.json"
+from COGS.paths import data_path
+
+SERVER_FILE = data_path("server.json")
 
 
 def load_verified_users():
     try:
-        with open(SERVER_FILE, "r") as file:
+        with open(SERVER_FILE, "r", encoding="utf-8") as file:
             data = json.load(file)
             users = set(str(user["user_id"]) for user in data.get("verified_users", []))
             return users

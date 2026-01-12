@@ -2,7 +2,9 @@ import discord
 import json
 from discord.ext import commands
 
-SERVER_JSON_PATH = "/home/pi/discord-bots/bots/CDA Admin/server.json"  # Path to the uploaded file
+from COGS.paths import data_path
+
+SERVER_JSON_PATH = data_path("server.json")  # Path to the uploaded file
 
 class ChannelCleanupCog(commands.Cog):
     def __init__(self, bot):

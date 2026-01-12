@@ -1,11 +1,12 @@
 # verify_watch.py
 import json
 import asyncio
-from pathlib import Path
 import discord
 from discord.ext import commands
 
-SERVER_JSON_PATH = Path("/home/pi/discord-bots/bots/CDA Admin/server.json")
+from COGS.paths import data_path
+
+SERVER_JSON_PATH = data_path("server.json")
 VERIFIED_ROLE_NAME = "Verified"
 ALERT_CHANNEL_ID = 1404605698960003123
 KICK_REASON = "Kicked from Server - Not Verified with Bot After Warning"

@@ -4,7 +4,9 @@ import os
 from discord.ext import commands
 from discord import ui
 
-SERVER_DATA_FILE = "../server.json"
+from COGS.paths import data_path
+
+SERVER_DATA_FILE = data_path("server.json")
 
 # Define role limits (role_id: max roles a user with that role can create)
 ROLE_LIMITS = {
@@ -46,10 +48,10 @@ class RoleModal(ui.Modal, title="Create Custom Role"):
     def store_role(self, role_id, role_name, hex_color, user_id):
         """Store the created role in server.json"""
         if not os.path.exists(SERVER_DATA_FILE):
-            with open(SERVER_DATA_FILE, "w") as f:
+            with open(SERVER_DATA_FILE, "w", encoding="utf-8") as f:
                 json.dump({"user_roles": []}, f)
 
-        with open(SERVER_DATA_FILE, "r") as f:
+        with open(SERVER_DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         if "user_roles" not in data:
@@ -62,7 +64,7 @@ class RoleModal(ui.Modal, title="Create Custom Role"):
             "created_by": user_id
         })
 
-        with open(SERVER_DATA_FILE, "w") as f:
+        with open(SERVER_DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
 
 
@@ -104,7 +106,7 @@ class RoleButton(ui.View):
         if not os.path.exists(SERVER_DATA_FILE):
             return 0
 
-        with open(SERVER_DATA_FILE, "r") as f:
+        with open(SERVER_DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         if "user_roles" not in data:
