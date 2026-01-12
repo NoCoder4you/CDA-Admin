@@ -45,11 +45,10 @@ echo "----------------------------------"
 echo "[Updater] Syncing files..."
 
 rsync -a --delete \
-  --exclude ".git" \
-  --exclude ".github" \
-  --exclude ".gitmodules" \
-  --exclude ".repo_cache" \
-  --exclude "venv" --exclude ".venv" \
+  --filter='P bot.py' \
+  --exclude='bot.py' \
+  --exclude='.git' \
+  --exclude='.repo_cache' \
   "$CACHE/" "$TARGET/"
 
 echo "[Updater] Sync complete -> $TARGET"
