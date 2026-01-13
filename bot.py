@@ -26,13 +26,23 @@ bot = commands.Bot(command_prefix="noah ", intents=intents, help_command=None)
 
 SERVER_FILE = "/home/pi/discord-bots/bots/CDA Admin/server.json"
 
-# Dynamically discover .py files (excluding bot.py)
+# Dynamically discover .py files in the COGS directory
 def discover_extensions():
     current_dir = os.path.dirname(os.path.abspath(__file__))
+    cogs_dir = os.path.join(current_dir, "COGS")
+    if not os.path.isdir(cogs_dir):
+        logging.error(f"COGS directory not found at {cogs_dir}")
+        return []
     return [
-        file[:-3] for file in os.listdir(current_dir)
-        if file.endswith('.py') and file != 'bot.py'
+        f"COGS.{file[:-3]}"
+        for file in os.listdir(cogs_dir)
+        if file.endswith(".py") and not file.startswith("__")
     ]
+
+def resolve_extension_name(extension: str) -> str:
+    if "." in extension:
+        return extension
+    return f"COGS.{extension}"
 
 # Load all extensions
 async def load_cogs():
@@ -116,8 +126,9 @@ async def custom_help(ctx):
 @commands.is_owner()
 async def load(ctx, extension: str):
     try:
-        await bot.load_extension(extension)
-        await ctx.send(f"Loaded `{extension}` successfully.", delete_after=2.5)
+        resolved_extension = resolve_extension_name(extension)
+        await bot.load_extension(resolved_extension)
+        await ctx.send(f"Loaded `{resolved_extension}` successfully.", delete_after=2.5)
     except Exception as e:
         logging.error(f"Failed to load cog {extension}: {e}")
         await ctx.send(f"Failed to load `{extension}`: {e}", delete_after=2.5)
@@ -127,8 +138,9 @@ async def load(ctx, extension: str):
 async def unload(ctx, extension: str):
     """Dynamically unload a cog."""
     try:
-        await bot.unload_extension(extension)
-        await ctx.send(f"Unloaded `{extension}` successfully.", delete_after=2.5)
+        resolved_extension = resolve_extension_name(extension)
+        await bot.unload_extension(resolved_extension)
+        await ctx.send(f"Unloaded `{resolved_extension}` successfully.", delete_after=2.5)
     except Exception as e:
         logging.error(f"Failed to unload cog {extension}: {e}")
         await ctx.send(f"Failed to unload `{extension}`: {e}", delete_after=2.5)
@@ -138,8 +150,9 @@ async def unload(ctx, extension: str):
 async def reload(ctx, extension: str):
     """Dynamically reload a cog."""
     try:
-        await bot.reload_extension(extension)
-        await ctx.send(f"Reloaded `{extension}` successfully.", delete_after=2.5)
+        resolved_extension = resolve_extension_name(extension)
+        await bot.reload_extension(resolved_extension)
+        await ctx.send(f"Reloaded `{resolved_extension}` successfully.", delete_after=2.5)
     except Exception as e:
         logging.error(f"Failed to reload cog {extension}: {e}")
         await ctx.send(f"Failed to reload `{extension}`: {e}", delete_after=2.5)
