@@ -9,6 +9,7 @@ import random
 import string
 from COGS.BotCheck import is_verified
 from COGS.paths import data_path
+from COGS.WelcomeDM import send_welcome_dm
 
 
 class HabboVerifyCog(commands.Cog):
@@ -448,6 +449,25 @@ class HabboVerifyCog(commands.Cog):
                 "timestamp": time.time(),
             }
             self.save_verification_codes()
+
+            await send_welcome_dm(interaction.user, habbo)
+
+            verify_embed = discord.Embed(
+                title="Verify Your Habbo Account",
+                description=(
+                    "Add the code below to your Habbo motto, then run **`/verify`** again.\n"
+                    f"## `{verification_code}`\n"
+                    "If you entered the wrong Habbo name, wait up to 5 minutes and retry."
+                ),
+                color=discord.Color.green()
+            )
+            verify_embed.set_image(
+                url=f"https://www.habbo.com/habbo-imaging/avatarimage?user={habbo}&direction=3&head_direction=3&gesture=nor&action=wav&size=l"
+            )
+            try:
+                await interaction.user.send(embed=verify_embed)
+            except discord.Forbidden:
+                print(f"Could not DM user {interaction.user.id}. They may have DMs disabled.")
 
             embed = discord.Embed(
                 title="Verification Started",
