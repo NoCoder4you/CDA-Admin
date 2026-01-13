@@ -6,7 +6,7 @@ from discord.ext import commands
 
 from COGS.paths import data_path
 
-SERVER_JSON_PATH = data_path("server.json")
+SERVER_JSON_PATH = data_path("JSON/server.json")
 VERIFIED_ROLE_NAME = "Verified"
 ALERT_CHANNEL_ID = 1404605698960003123
 KICK_REASON = "Kicked from Server - Not Verified with Bot After Warning"
