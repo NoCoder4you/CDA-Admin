@@ -18,7 +18,7 @@ logging.basicConfig(
     ]
 )
 
-BOT_TOKEN = "MTMxNTczNzk0NTIwNjE2NTU3NA.G6UEvf.JJxYMa4uddpzN4pO0txqp6SESXGsxUzlHTSdPs"
+BOT_TOKEN = ""
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="noah ", intents=intents, help_command=None)
@@ -235,3 +235,4 @@ async def on_ready():
 
 
 bot.run(BOT_TOKEN)
+
