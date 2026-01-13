@@ -122,6 +122,16 @@ class ActionView(discord.ui.View):
             return
 
         try:
+            try:
+                await member.send(
+                    "You are being kicked from the server because you have the Verified role "
+                    "without an eligible employee or Special Visitor role. Please contact staff "
+                    "if you believe this is a mistake."
+                )
+            except discord.Forbidden:
+                pass
+            except discord.HTTPException:
+                pass
             await member.kick(reason=KICK_REASON)
             await interaction.response.send_message(f"✅ {member.mention} has been kicked.", ephemeral=True)
         except discord.Forbidden:
