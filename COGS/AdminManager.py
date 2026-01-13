@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from COGS.paths import data_path
 
-_ADMIN_JSON = data_path("admins.json")           # <-- keep the JSON you created here
+_ADMIN_JSON = data_path("JSON/admins.json")           # <-- keep the JSON you created here
 
 # --------------------------------------------------------------------------- #
 # helpers                                                                     #

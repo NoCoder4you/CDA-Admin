@@ -1,5 +1,3 @@
-# file: cog_manager.py
-# discord.py ?2.3
 import traceback
 from pathlib import Path
 

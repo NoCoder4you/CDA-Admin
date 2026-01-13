@@ -6,7 +6,7 @@ import os
 
 from COGS.paths import data_path
 
-NICEBLOCK_FILE = data_path("niceblock_users.json")
+NICEBLOCK_FILE = data_path("JSON/niceblock_users.json")
 
 def load_enabled_users():
     if not os.path.isfile(NICEBLOCK_FILE):
