@@ -31,7 +31,7 @@ def _has_any_role_id(member: discord.Member, role_ids: set[int]) -> bool:
 
 
 def _load_roles_data() -> dict:
-    roles_path = data_path("rolesbadges.json")
+    roles_path = data_path("JSON/rolesbadges.json")
     try:
         with open(roles_path, "r", encoding="utf-8") as file:
             data = json.load(file)
