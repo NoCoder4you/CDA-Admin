@@ -11,7 +11,7 @@ from COGS.paths import data_path
 class BanOnSightCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.verification_file = data_path("server.json")
+        self.verification_file = data_path("JSON/server.json")
         self.punishment_file = data_path("punishment.json")
         self.verified_role_id = 1320054879477170299  # Replace with your Verified role ID
         self.load_data()

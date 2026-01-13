@@ -10,7 +10,7 @@ from COGS.paths import data_path
 class AnnouncerCog(commands.Cog):
     def __init__(self, bot, config_path=None):
         self.bot = bot
-        self.config_path = config_path or data_path("server.json")
+        self.config_path = config_path or data_path("JSON/server.json")
         self.announcement_channel_id = self._load_announcement_channel_id()
         self.scheduler = AsyncIOScheduler()
         self.external_emoji = "<:Pay:1305265714042765483>"  # Replace if needed
