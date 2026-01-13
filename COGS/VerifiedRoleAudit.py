@@ -12,6 +12,7 @@ SPECIAL_VISITOR_ROLE_ID = 1249423888677601392
 EMPLOYEE_ROLE_NAME = "CDA Employee"
 SPECIAL_VISITOR_ROLE_NAME = "Special Visitor"
 ALERT_CHANNEL_NAME = "⚡｜butt-kicking"
+DISCORD_OFFICERS_ROLE_NAME = "Discord Officers"
 KICK_REASON = "Kicked from Server - Verified Without Employee or Special Visitor"
 
 RATE_LIMIT_DELAY = 2.5
@@ -142,6 +143,9 @@ class VerifiedRoleAudit(commands.Cog):
     def _get_alert_channel(self, guild: discord.Guild) -> discord.TextChannel | None:
         return discord.utils.get(guild.text_channels, name=ALERT_CHANNEL_NAME)
 
+    def _get_discord_officers_role(self, guild: discord.Guild) -> discord.Role | None:
+        return discord.utils.get(guild.roles, name=DISCORD_OFFICERS_ROLE_NAME)
+
     async def _already_alerted(self, channel: discord.abc.Messageable, user_id: int) -> bool:
         if user_id in self._alerted_users:
             return True
@@ -160,7 +164,7 @@ class VerifiedRoleAudit(commands.Cog):
             pass
         return False
 
-    async def _post_alert(self, member: discord.Member):
+    async def _post_alert(self, member: discord.Member, include_officers_mention: bool = False):
         channel = self._get_alert_channel(member.guild)
         if channel is None:
             return
@@ -183,7 +187,12 @@ class VerifiedRoleAudit(commands.Cog):
                 exempt_role_ids=self._exempt_role_ids,
                 employee_role_ids=self._employee_role_ids,
             )
-            await channel.send(content=member.mention, embed=embed, view=view)
+            content = member.mention
+            if include_officers_mention:
+                officers_role = self._get_discord_officers_role(member.guild)
+                if officers_role is not None:
+                    content = f"{officers_role.mention} {content}"
+            await channel.send(content=content, embed=embed, view=view)
             self._alerted_users.add(member.id)
 
     async def _scan_guild(self, guild: discord.Guild):
@@ -207,7 +216,7 @@ class VerifiedRoleAudit(commands.Cog):
             before, self._exempt_role_ids, self._employee_role_ids
         ):
             await asyncio.sleep(RATE_LIMIT_DELAY)
-            await self._post_alert(after)
+            await self._post_alert(after, include_officers_mention=True)
 
     @commands.command(name="rolescan")
     async def manual_scan(self, ctx: commands.Context):
