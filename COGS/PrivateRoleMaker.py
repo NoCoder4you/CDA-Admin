@@ -6,7 +6,7 @@ from discord import ui
 
 from COGS.paths import data_path
 
-SERVER_DATA_FILE = data_path("server.json")
+SERVER_DATA_FILE = data_path("JSON/server.json")
 
 # Define role limits (role_id: max roles a user with that role can create)
 ROLE_LIMITS = {

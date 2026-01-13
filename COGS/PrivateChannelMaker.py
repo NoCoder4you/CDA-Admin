@@ -7,7 +7,7 @@ CATEGORY_NAME = "Private Channels"
 HUB_CHANNEL_NAME = "the-hub"
 from COGS.paths import data_path
 
-SERVER_JSON_PATH = data_path("server.json")  # Path to the uploaded file
+SERVER_JSON_PATH = data_path("JSON/server.json")  # Path to the uploaded file
 
 # Role-based limits for text channels
 ROLE_TEXT_LIMITS = {

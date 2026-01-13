@@ -6,7 +6,7 @@ from fuzzywuzzy import process
 from COGS.paths import data_path
 
 # Load server.json data
-with open(data_path("server.json"), "r", encoding="utf-8") as f:
+with open(data_path("JSON/server.json"), "r", encoding="utf-8") as f:
     server_data = json.load(f)
 
 
@@ -29,7 +29,7 @@ class ChannelSettingsCog(commands.Cog):
             return  # Ignore messages outside the "Private Channels" category
 
         # Refresh the server data dynamically
-        with open(data_path("server.json"), "r", encoding="utf-8") as f:
+        with open(data_path("JSON/server.json"), "r", encoding="utf-8") as f:
             server_data = json.load(f)
 
         if user_id in server_data["user_channels"]:
@@ -196,7 +196,7 @@ class InviteUserModal(discord.ui.Modal, title="Invite User"):
         if invited_user.id not in server_data["user_channels"][owner_id_str]["invited_users"]:
             server_data["user_channels"][owner_id_str]["invited_users"].append(invited_user.id)
 
-            with open(data_path("server.json"), "w", encoding="utf-8") as f:
+            with open(data_path("JSON/server.json"), "w", encoding="utf-8") as f:
                 json.dump(server_data, f, indent=4)
 
             await self.channel.set_permissions(invited_user, read_messages=True, send_messages=True)
@@ -248,7 +248,7 @@ class RemoveUserModal(discord.ui.Modal, title="Remove User"):
         if "invited_users" in server_data["user_channels"][owner_id_str] and removed_user.id in server_data["user_channels"][owner_id_str]["invited_users"]:
             server_data["user_channels"][owner_id_str]["invited_users"].remove(removed_user.id)
 
-            with open(data_path("server.json"), "w", encoding="utf-8") as f:
+            with open(data_path("JSON/server.json"), "w", encoding="utf-8") as f:
                 json.dump(server_data, f, indent=4)
 
             # Revoke permissions to remove user from the channel

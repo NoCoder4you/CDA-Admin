@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from COGS.paths import data_path
 
-SERVER_DATA_FILE = data_path("server.json")
+SERVER_DATA_FILE = data_path("JSON/server.json")
 
 class RoleDeletionCog(commands.Cog):
     def __init__(self, bot):

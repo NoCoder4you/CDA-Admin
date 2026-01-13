@@ -14,9 +14,9 @@ from COGS.paths import data_path
 class HabboVerifyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.roles_file_path = data_path("rolesbadges.json")
+        self.roles_file_path = data_path("JSON/rolesbadges.json")
         self.roles_data = self.load_roles_data()
-        self.server_data_path = data_path("server.json")
+        self.server_data_path = data_path("JSON/server.json")
         self.verification_file_path = data_path("verification_codes.json")
         self.server_data = self.load_server_data()
         self.verification_data = self.load_verification_codes()
