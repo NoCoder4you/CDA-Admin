@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from COGS.paths import data_path
 
-SERVER_FILE = data_path("server.json")
+SERVER_FILE = data_path("JSON/server.json")
 
 
 def load_verified_users():

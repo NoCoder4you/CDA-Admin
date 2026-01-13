@@ -14,7 +14,7 @@ AWAITING_ROLE_ID = 1248310200939581594
 class VerificationAdminReset(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.server_data_path = data_path("server.json")
+        self.server_data_path = data_path("JSON/server.json")
 
     def load_server_data(self):
         if os.path.exists(self.server_data_path):

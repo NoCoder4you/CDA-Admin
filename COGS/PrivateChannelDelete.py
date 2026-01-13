@@ -4,7 +4,7 @@ from discord.ext import commands
 
 from COGS.paths import data_path
 
-SERVER_JSON_PATH = data_path("server.json")  # Path to the uploaded file
+SERVER_JSON_PATH = data_path("JSON/server.json")  # Path to the uploaded file
 
 class ChannelCleanupCog(commands.Cog):
     def __init__(self, bot):

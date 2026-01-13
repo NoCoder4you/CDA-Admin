@@ -9,8 +9,8 @@ from COGS.paths import data_path
 class AutoRoleUpdater(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.roles_file_path = data_path("rolesbadges.json")
-        self.server_data_path = data_path("server.json")
+        self.roles_file_path = data_path("JSON/rolesbadges.json")
+        self.server_data_path = data_path("JSON/server.json")
         self.roles_data = self.load_roles_data()
         self.server_data = self.load_server_data()
         self.verified_role_id = 1277489459226738808
