@@ -109,6 +109,7 @@ class NameChangeCog(commands.Cog):
         if not user_entry:
             await interaction.response.send_message("You are not a verified user.", ephemeral=True)
             return
+        await interaction.response.defer(ephemeral=True, thinking=True)
 
         current_username = user_entry["habbo"]
         embed = discord.Embed(
@@ -123,15 +124,18 @@ class NameChangeCog(commands.Cog):
 
         request_channel = interaction.client.get_channel(REQUEST_CHANNEL_ID)
         if request_channel is None:
-            await interaction.response.send_message(
-                f"Failed to send request: Could not find the request channel.", ephemeral=True
+            request_channel = await interaction.client.fetch_channel(REQUEST_CHANNEL_ID)
+        if request_channel is None:
+            await interaction.followup.send(
+                "Failed to send request: Could not find the request channel.",
+                ephemeral=True,
             )
             return
 
         await request_channel.send(embed=embed, view=view)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Your name change request has been sent to <#{REQUEST_CHANNEL_ID}> for approval.",
-            ephemeral=True
+            ephemeral=True,
         )
 
 async def setup(bot):
