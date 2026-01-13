@@ -30,15 +30,18 @@ def _has_any_role_id(member: discord.Member, role_ids: set[int]) -> bool:
     return any(role.id in role_ids for role in member.roles)
 
 
-def _load_exempt_role_ids() -> set[int]:
+def _load_roles_data() -> dict:
     roles_path = data_path("rolesbadges.json")
     try:
         with open(roles_path, "r", encoding="utf-8") as file:
             data = json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
-        return set()
+        return {}
 
-    roles_data = data.get("roles", {}) if isinstance(data, dict) else {}
+    return data.get("roles", {}) if isinstance(data, dict) else {}
+
+
+def _load_exempt_role_ids(roles_data: dict) -> set[int]:
     exempt_role_ids: set[int] = set()
 
     for role_data in roles_data.get("DonatorRoles", []):
@@ -57,19 +60,35 @@ def _load_exempt_role_ids() -> set[int]:
     return exempt_role_ids
 
 
-def _needs_action(member: discord.Member, exempt_role_ids: set[int]) -> bool:
+def _load_employee_role_ids(roles_data: dict) -> set[int]:
+    employee_role_ids: set[int] = {EMPLOYEE_ROLE_ID}
+
+    for role_data in roles_data.get("EmployeeRoles", []):
+        role_id = role_data.get("role_id")
+        if isinstance(role_id, int):
+            employee_role_ids.add(role_id)
+
+    return employee_role_ids
+
+
+def _needs_action(
+    member: discord.Member,
+    exempt_role_ids: set[int],
+    employee_role_ids: set[int],
+) -> bool:
     has_verified = _has_role(member, VERIFIED_ROLE_NAME)
-    has_employee = _has_role_id(member, EMPLOYEE_ROLE_ID)
+    has_employee = _has_any_role_id(member, employee_role_ids)
     has_special = _has_role_id(member, SPECIAL_VISITOR_ROLE_ID)
     has_exempt_role = _has_any_role_id(member, exempt_role_ids)
     return has_verified and not (has_employee or has_special) and not has_exempt_role
 
 
 class ActionView(discord.ui.View):
-    def __init__(self, target_user_id: int, exempt_role_ids: set[int]):
+    def __init__(self, target_user_id: int, exempt_role_ids: set[int], employee_role_ids: set[int]):
         super().__init__(timeout=None)
         self.target_user_id = target_user_id
         self.exempt_role_ids = exempt_role_ids
+        self.employee_role_ids = employee_role_ids
 
     @discord.ui.button(label="Ignore", style=discord.ButtonStyle.secondary)
     async def ignore_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -94,7 +113,7 @@ class ActionView(discord.ui.View):
             await interaction.response.send_message("User is no longer in the server.", ephemeral=True)
             return
 
-        if not _needs_action(member, self.exempt_role_ids):
+        if not _needs_action(member, self.exempt_role_ids, self.employee_role_ids):
             await interaction.response.send_message(
                 "User already has the required role(s).",
                 ephemeral=True,
@@ -116,7 +135,9 @@ class VerifiedRoleAudit(commands.Cog):
         self._ready_once = False
         self._alerted_users: set[int] = set()
         self._lock = asyncio.Lock()
-        self._exempt_role_ids = _load_exempt_role_ids()
+        roles_data = _load_roles_data()
+        self._exempt_role_ids = _load_exempt_role_ids(roles_data)
+        self._employee_role_ids = _load_employee_role_ids(roles_data)
 
     def _get_alert_channel(self, guild: discord.Guild) -> discord.TextChannel | None:
         return discord.utils.get(guild.text_channels, name=ALERT_CHANNEL_NAME)
@@ -152,17 +173,22 @@ class VerifiedRoleAudit(commands.Cog):
                 title=EMBED_TITLE,
                 description=(
                     f"{member.mention} has **{VERIFIED_ROLE_NAME}** but has neither "
-                    f"**{EMPLOYEE_ROLE_NAME}** nor **{SPECIAL_VISITOR_ROLE_NAME}**."
+                    f"**{EMPLOYEE_ROLE_NAME}** (or an employee role) nor "
+                    f"**{SPECIAL_VISITOR_ROLE_NAME}**."
                 ),
                 color=discord.Color.orange(),
             )
-            view = ActionView(target_user_id=member.id, exempt_role_ids=self._exempt_role_ids)
+            view = ActionView(
+                target_user_id=member.id,
+                exempt_role_ids=self._exempt_role_ids,
+                employee_role_ids=self._employee_role_ids,
+            )
             await channel.send(content=member.mention, embed=embed, view=view)
             self._alerted_users.add(member.id)
 
     async def _scan_guild(self, guild: discord.Guild):
         for member in guild.members:
-            if _needs_action(member, self._exempt_role_ids):
+            if _needs_action(member, self._exempt_role_ids, self._employee_role_ids):
                 await self._post_alert(member)
                 await asyncio.sleep(RATE_LIMIT_DELAY)
 
@@ -177,7 +203,9 @@ class VerifiedRoleAudit(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
-        if _needs_action(after, self._exempt_role_ids) and not _needs_action(before, self._exempt_role_ids):
+        if _needs_action(after, self._exempt_role_ids, self._employee_role_ids) and not _needs_action(
+            before, self._exempt_role_ids, self._employee_role_ids
+        ):
             await asyncio.sleep(RATE_LIMIT_DELAY)
             await self._post_alert(after)
 
