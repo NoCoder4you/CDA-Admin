@@ -20,10 +20,10 @@ DONATOR_COLORS = {
 }
 
 # Load server.json and rolesbadges.json
-with open(data_path("server.json"), "r", encoding="utf-8") as server_file:
+with open(data_path("JSON/server.json"), "r", encoding="utf-8") as server_file:
     server_data = json.load(server_file)
 
-with open(data_path("rolesbadges.json"), "r", encoding="utf-8") as roles_file:
+with open(data_path("JSON/rolesbadges.json"), "r", encoding="utf-8") as roles_file:
     roles_data = json.load(roles_file)
 
 class UserInfoCog(commands.Cog):
