@@ -83,19 +83,6 @@ class NameChangeView(ui.View):
             )
             return
 
-        data = load_server_json()
-        verified_users = data.setdefault("verified_users", [])
-        found = False
-        for user in verified_users:
-            if str(user.get("user_id")) == str(self.user_id):
-                user["habbo"] = self.new_username
-                found = True
-                break
-        if not found:
-            verified_users.append({"user_id": str(self.user_id), "habbo": self.new_username})
-        save_server_json(data)
-        sync_server_data(interaction.client, data)
-        
         # Attempt to change nickname in the guild
         guild = interaction.guild
         if guild:
@@ -110,6 +97,19 @@ class NameChangeView(ui.View):
                     await member.edit(nick=self.new_username)
                 except Exception:
                     pass  # Silently ignore errors (lack of permissions, etc.)
+
+        data = load_server_json()
+        verified_users = data.setdefault("verified_users", [])
+        found = False
+        for user in verified_users:
+            if str(user.get("user_id")) == str(self.user_id):
+                user["habbo"] = self.new_username
+                found = True
+                break
+        if not found:
+            verified_users.append({"user_id": str(self.user_id), "habbo": self.new_username})
+        save_server_json(data)
+        sync_server_data(interaction.client, data)
 
         await self.update_embed(interaction, "approved", interaction.user)
 
@@ -169,7 +169,13 @@ class NameChangeCog(commands.Cog):
             )
             return
 
-        await request_channel.send(embed=embed, view=view)
+        admin_role_label = discord_admin_role_label(interaction.guild)
+        await request_channel.send(
+            content=admin_role_label,
+            embed=embed,
+            view=view,
+            allowed_mentions=discord.AllowedMentions(roles=True),
+        )
         await interaction.followup.send(
             f"Your name change request has been sent to <#{REQUEST_CHANNEL_ID}> for approval.",
             ephemeral=True,
