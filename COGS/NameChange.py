@@ -25,8 +25,17 @@ def sync_server_data(bot, data):
         if Path(server_data_path).resolve() == Path(SERVER_JSON_PATH).resolve():
             cog.server_data = data
 
-def has_discord_admins_role(member: discord.Member):
-    return any(role.name.lower() == "discord admins" for role in member.roles)
+def get_discord_admin_role(guild: discord.Guild):
+    return discord.utils.get(guild.roles, name="Discord Admin")
+
+
+def has_discord_admin_role(member: discord.Member):
+    return any(role.name.lower() == "discord admin" for role in member.roles)
+
+
+def discord_admin_role_label(guild: discord.Guild):
+    role = get_discord_admin_role(guild)
+    return role.mention if role else "Discord Admin"
 
 class NameChangeView(ui.View):
     def __init__(self, user_id: int, current_username: str, new_username: str):
@@ -64,9 +73,13 @@ class NameChangeView(ui.View):
 
     @ui.button(label="Approve", style=discord.ButtonStyle.success)
     async def approve(self, interaction: Interaction, button: ui.Button):
-        if not has_discord_admins_role(interaction.user):
+        if not has_discord_admin_role(interaction.user):
             await interaction.response.send_message(
-                "You do not have permission to approve. Only Discord Admins can approve.", ephemeral=True
+                (
+                    "You do not have permission to approve. "
+                    f"Only {discord_admin_role_label(interaction.guild)} can approve."
+                ),
+                ephemeral=True,
             )
             return
 
@@ -87,6 +100,11 @@ class NameChangeView(ui.View):
         guild = interaction.guild
         if guild:
             member = guild.get_member(self.user_id)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(self.user_id)
+                except Exception:
+                    member = None
             if member:
                 try:
                     await member.edit(nick=self.new_username)
@@ -97,9 +115,13 @@ class NameChangeView(ui.View):
 
     @ui.button(label="Reject", style=discord.ButtonStyle.danger)
     async def reject(self, interaction: Interaction, button: ui.Button):
-        if not has_discord_admins_role(interaction.user):
+        if not has_discord_admin_role(interaction.user):
             await interaction.response.send_message(
-                "You do not have permission to reject. Only Discord Admins can reject.", ephemeral=True
+                (
+                    "You do not have permission to reject. "
+                    f"Only {discord_admin_role_label(interaction.guild)} can reject."
+                ),
+                ephemeral=True,
             )
             return
         await self.update_embed(interaction, "rejected", interaction.user)
@@ -133,6 +155,11 @@ class NameChangeCog(commands.Cog):
         )
         embed.add_field(name="Current Username", value=current_username, inline=False)
         embed.add_field(name="Requested New Username", value=username, inline=False)
+        embed.add_field(
+            name="Required Role",
+            value=discord_admin_role_label(interaction.guild),
+            inline=False,
+        )
         embed.set_footer(text="Pending Approval")
 
         view = NameChangeView(user_id=int(user_id), current_username=current_username, new_username=username)
