@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands, Interaction, ui
 import json
+from pathlib import Path
 
 from COGS.paths import data_path
 
@@ -15,6 +16,14 @@ def load_server_json():
 def save_server_json(data):
     with open(SERVER_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
+def sync_server_data(bot, data):
+    for cog in bot.cogs.values():
+        server_data_path = getattr(cog, "server_data_path", None)
+        if server_data_path is None:
+            continue
+        if Path(server_data_path).resolve() == Path(SERVER_JSON_PATH).resolve():
+            cog.server_data = data
 
 def has_discord_admins_role(member: discord.Member):
     return any(role.name.lower() == "discord admins" for role in member.roles)
@@ -62,14 +71,17 @@ class NameChangeView(ui.View):
             return
 
         data = load_server_json()
+        verified_users = data.setdefault("verified_users", [])
         found = False
-        for user in data.get("verified_users", []):
-            if str(user["user_id"]) == str(self.user_id):
+        for user in verified_users:
+            if str(user.get("user_id")) == str(self.user_id):
                 user["habbo"] = self.new_username
                 found = True
                 break
-        if found:
-            save_server_json(data)
+        if not found:
+            verified_users.append({"user_id": str(self.user_id), "habbo": self.new_username})
+        save_server_json(data)
+        sync_server_data(interaction.client, data)
         
         # Attempt to change nickname in the guild
         guild = interaction.guild
@@ -104,7 +116,10 @@ class NameChangeCog(commands.Cog):
     async def namechange(self, interaction: discord.Interaction, username: str):
         user_id = str(interaction.user.id)
         data = load_server_json()
-        user_entry = next((user for user in data.get("verified_users", []) if user["user_id"] == user_id), None)
+        user_entry = next(
+            (user for user in data.get("verified_users", []) if str(user.get("user_id")) == user_id),
+            None,
+        )
 
         if not user_entry:
             await interaction.response.send_message("You are not a verified user.", ephemeral=True)
