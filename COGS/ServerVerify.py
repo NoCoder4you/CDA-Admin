@@ -99,76 +99,6 @@ class HabboVerifyCog(commands.Cog):
         return ''.join(random.choices(string.ascii_letters + string.digits, k=5))
 
 
-    @app_commands.command(name="getroles", description="Assign roles to a user based on their Habbo groups.")
-    @is_verified()
-    async def assign_roles_command(self, interaction: discord.Interaction, habbo: str, hotel: str = "com"):
-        try:
-            await interaction.response.defer(ephemeral=True)
-
-            user_url = f"https://www.habbo.{hotel}/api/public/users?name={habbo}"
-
-            async with aiohttp.ClientSession() as session:
-                async with session.get(user_url) as user_response:
-                    if user_response.status == 200:
-                        user_data = await user_response.json()
-                        habbo_id = user_data.get("uniqueId")
-                        habbo_name = user_data.get("name")
-
-                        guild = interaction.guild
-                        member = guild.get_member(interaction.user.id)
-
-                        if not member:
-                            await interaction.followup.send(
-                                content="User is not in this server.", ephemeral=True
-                            )
-                            return
-
-                        groups_url = f"https://www.habbo.com/api/public/users/{habbo_id}/groups"
-                        async with session.get(groups_url) as groups_response:
-                            if groups_response.status == 200:
-                                groups_data = await groups_response.json()
-
-                                added_roles, removed_roles = await self.assign_roles(member, groups_data, guild)
-
-                                embed = discord.Embed(
-                                    title="Roles Update",
-                                    color=discord.Color.green() if added_roles else discord.Color.orange()
-                                )
-                                if added_roles:
-                                    embed.add_field(
-                                        name="Added Roles",
-                                        value="\n".join(added_roles),
-                                        inline=False
-                                    )
-                                if removed_roles:
-                                    embed.add_field(
-                                        name="Removed Roles",
-                                        value="\n".join(removed_roles),
-                                        inline=False
-                                    )
-                                if not added_roles and not removed_roles:
-                                    embed.description = "No roles were assigned or removed."
-
-                                await interaction.followup.send(embed=embed, ephemeral=True)
-                            else:
-                                await interaction.followup.send(
-                                    content=f"Failed to fetch groups for `{habbo}`. Please check the username and try again.",
-                                    ephemeral=True
-                                )
-                    else:
-                        await interaction.followup.send(
-                            content=f"Failed to fetch Habbo information for `{habbo}`. Please check the username and hotel.",
-                            ephemeral=True
-                        )
-        except Exception as e:
-            await interaction.followup.send(
-                embed=discord.Embed(
-                    title="An Error Occurred",
-                    description=str(e),
-                    color=discord.Color.red()
-                ), ephemeral=True
-            )
-
     async def assign_roles(self, member, groups_data, guild):
         ic_role_id = 1249819550015426571
         cdaemployee_role_id = 1248313244481884220
@@ -404,7 +334,7 @@ class HabboVerifyCog(commands.Cog):
                                                 user_data = await user_response.json()
                                                 habbo_id = user_data.get("uniqueId")  # Get unique Habbo ID
                                                 
-                                                # Fetch the groups data (just like `/getroles`)
+                                                # Fetch the groups data to assign roles automatically
                                                 groups_url = f"https://www.habbo.com/api/public/users/{habbo_id}/groups"
                                                 async with session.get(groups_url) as groups_response:
                                                     if groups_response.status == 200:
