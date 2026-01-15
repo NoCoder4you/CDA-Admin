@@ -169,7 +169,13 @@ class NameChangeCog(commands.Cog):
             )
             return
 
-        await request_channel.send(embed=embed, view=view)
+        admin_role_label = discord_admin_role_label(interaction.guild)
+        await request_channel.send(
+            content=admin_role_label,
+            embed=embed,
+            view=view,
+            allowed_mentions=discord.AllowedMentions(roles=True),
+        )
         await interaction.followup.send(
             f"Your name change request has been sent to <#{REQUEST_CHANNEL_ID}> for approval.",
             ephemeral=True,
