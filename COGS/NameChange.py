@@ -2,12 +2,14 @@ import discord
 from discord.ext import commands
 from discord import app_commands, Interaction, ui
 import json
+import logging
 from pathlib import Path
 
 from COGS.paths import data_path
 
 SERVER_JSON_PATH = data_path("JSON/server.json")
 REQUEST_CHANNEL_ID = 1249491219348852828  # Channel to send the request embed
+logger = logging.getLogger(__name__)
 
 def load_server_json():
     with open(SERVER_JSON_PATH, "r", encoding="utf-8") as f:
@@ -96,7 +98,44 @@ class NameChangeView(ui.View):
                 try:
                     await member.edit(nick=self.new_username)
                 except Exception:
-                    pass  # Silently ignore errors (lack of permissions, etc.)
+                    logger.warning(
+                        "Failed to update nickname for user %s in guild %s",
+                        self.user_id,
+                        guild.id,
+                        exc_info=True,
+                    )
+            else:
+                logger.warning(
+                    "Unable to find guild member %s in guild %s to update nickname",
+                    self.user_id,
+                    guild.id,
+                )
+        else:
+            logger.warning(
+                "No guild context for name change approval; nickname not updated for user %s",
+                self.user_id,
+            )
+
+        data = load_server_json()
+        verified_users = data.setdefault("verified_users", [])
+        found = False
+        for user in verified_users:
+            if str(user.get("user_id")) == str(self.user_id):
+                user["habbo"] = self.new_username
+                found = True
+                break
+        if not found:
+            verified_users.append({"user_id": str(self.user_id), "habbo": self.new_username})
+        try:
+            save_server_json(data)
+        except Exception:
+            logger.error(
+                "Failed to update server.json for user %s",
+                self.user_id,
+                exc_info=True,
+            )
+        else:
+            sync_server_data(interaction.client, data)
 
         data = load_server_json()
         verified_users = data.setdefault("verified_users", [])
