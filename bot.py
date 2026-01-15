@@ -18,7 +18,7 @@ logging.basicConfig(
     ]
 )
 
-BOT_TOKEN = "MTMxNTczNzk0NTIwNjE2NTU3NA.G8Kjv0.t3EuOrSXhnDfe6blv5bFlClzRujSXJ4q_ed-xo"
+BOT_TOKEN = ""
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="noah ", intents=intents, help_command=None)
