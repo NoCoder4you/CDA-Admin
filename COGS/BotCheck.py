@@ -51,7 +51,7 @@ def has_authorised_role():
         if discAdmin:
             if verified:
                 return True
-        await interaction.response.send_message("You do not have the required 'Discord Admin' role.", ephemeral=True)
+        await interaction.response.send_message("You do not have the required 'Discord Admins' role.", ephemeral=True)
         return False
 
     return app_commands.check(predicate)
