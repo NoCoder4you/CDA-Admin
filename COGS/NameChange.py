@@ -26,16 +26,16 @@ def sync_server_data(bot, data):
             cog.server_data = data
 
 def get_discord_admin_role(guild: discord.Guild):
-    return discord.utils.get(guild.roles, name="Discord Admin")
+    return discord.utils.get(guild.roles, name="Discord Admins")
 
 
 def has_discord_admin_role(member: discord.Member):
-    return any(role.name.lower() == "discord admin" for role in member.roles)
+    return any(role.name.lower() == "discord admins" for role in member.roles)
 
 
 def discord_admin_role_label(guild: discord.Guild):
     role = get_discord_admin_role(guild)
-    return role.mention if role else "Discord Admin"
+    return role.mention if role else "Discord Admins"
 
 class NameChangeView(ui.View):
     def __init__(self, user_id: int, current_username: str, new_username: str):
@@ -155,11 +155,6 @@ class NameChangeCog(commands.Cog):
         )
         embed.add_field(name="Current Username", value=current_username, inline=False)
         embed.add_field(name="Requested New Username", value=username, inline=False)
-        embed.add_field(
-            name="Required Role",
-            value=discord_admin_role_label(interaction.guild),
-            inline=False,
-        )
         embed.set_footer(text="Pending Approval")
 
         view = NameChangeView(user_id=int(user_id), current_username=current_username, new_username=username)
