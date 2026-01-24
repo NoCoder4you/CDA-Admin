@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-AUTHORIZED_USER_ID = [298121351871594497, 1059208978334228521]
+AUTHORIZED_USER_ID = 298121351871594497
 
 WHITE = discord.Color.from_rgb(255, 255, 255)  # True white
 
