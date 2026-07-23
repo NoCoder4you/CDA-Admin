@@ -11,7 +11,10 @@ from COGS.paths import data_path
 class AutoRoleUpdater(commands.Cog):
     # Habbo does not publish a request quota. Keeping every request on one paced
     # lane prevents the scheduled updater and member-join handler from bursting.
-    HABBO_REQUEST_INTERVAL = 1.0
+    HABBO_INITIAL_REQUEST_INTERVAL = 1.0
+    HABBO_MIN_REQUEST_INTERVAL = 0.25
+    HABBO_MAX_REQUEST_INTERVAL = 8.0
+    HABBO_SUCCESS_WINDOW = 25
     HABBO_MAX_ATTEMPTS = 5
 
     def __init__(self, bot):
@@ -25,6 +28,8 @@ class AutoRoleUpdater(commands.Cog):
         self._habbo_request_lock = asyncio.Lock()
         self._next_habbo_request_at = 0.0
         self._habbo_blocked_until = 0.0
+        self._habbo_request_interval = self.HABBO_INITIAL_REQUEST_INTERVAL
+        self._habbo_success_streak = 0
 
         self.update_roles_task.start()  # Start the automatic update task
 
@@ -40,7 +45,34 @@ class AutoRoleUpdater(commands.Cog):
             await asyncio.sleep(allowed_at - now)
 
         # Measure again because sleeping advances the monotonic clock.
-        self._next_habbo_request_at = time.monotonic() + self.HABBO_REQUEST_INTERVAL
+        self._next_habbo_request_at = time.monotonic() + self._habbo_request_interval
+
+    def _record_habbo_success(self):
+        """Cautiously speed up after a sustained run of successful requests."""
+        self._habbo_success_streak += 1
+        if self._habbo_success_streak < self.HABBO_SUCCESS_WINDOW:
+            return
+
+        previous_interval = self._habbo_request_interval
+        self._habbo_request_interval = max(
+            self.HABBO_MIN_REQUEST_INTERVAL,
+            self._habbo_request_interval * 0.8,
+        )
+        self._habbo_success_streak = 0
+        if self._habbo_request_interval != previous_interval:
+            print(
+                "Habbo API is healthy; request interval reduced to "
+                f"{self._habbo_request_interval:.2f}s."
+            )
+
+    def _record_habbo_rate_limit(self):
+        """Immediately slow future requests after Habbo reports a rate limit."""
+        self._habbo_request_interval = min(
+            self.HABBO_MAX_REQUEST_INTERVAL,
+            self._habbo_request_interval * 2,
+        )
+        # Require a complete success window before trying a faster rate again.
+        self._habbo_success_streak = 0
 
     async def _defer_habbo_requests(self, delay):
         """Apply a Retry-After delay globally, including concurrent join checks."""
@@ -59,7 +91,9 @@ class AutoRoleUpdater(commands.Cog):
                 try:
                     async with session.get(url) as response:
                         if response.status == 200:
-                            return await response.json()
+                            payload = await response.json()
+                            self._record_habbo_success()
+                            return payload
 
                         if response.status == 429:
                             # Honour Habbo's requested cooldown. If the header is absent
@@ -68,8 +102,12 @@ class AutoRoleUpdater(commands.Cog):
                                 delay = max(float(response.headers.get("Retry-After", "")), 1.0)
                             except (TypeError, ValueError):
                                 delay = min(2 ** attempt, 60)
+                            self._record_habbo_rate_limit()
                             await self._defer_habbo_requests(delay)
-                            print(f"Habbo API rate limited; retrying in {delay:.1f}s.")
+                            print(
+                                f"Habbo API rate limited; retrying in {delay:.1f}s "
+                                f"at a {self._habbo_request_interval:.2f}s interval."
+                            )
                             continue
 
                         if 500 <= response.status < 600:
