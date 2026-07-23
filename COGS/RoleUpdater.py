@@ -1,12 +1,22 @@
 import discord
 import aiohttp
+import asyncio
 import json
 import os
 import time
+from urllib.parse import quote
 from discord.ext import commands, tasks
 from COGS.paths import data_path
 
 class AutoRoleUpdater(commands.Cog):
+    # Habbo does not publish a request quota. Keeping every request on one paced
+    # lane prevents the scheduled updater and member-join handler from bursting.
+    HABBO_INITIAL_REQUEST_INTERVAL = 1.0
+    HABBO_MIN_REQUEST_INTERVAL = 0.25
+    HABBO_MAX_REQUEST_INTERVAL = 8.0
+    HABBO_SUCCESS_WINDOW = 25
+    HABBO_MAX_ATTEMPTS = 5
+
     def __init__(self, bot):
         self.bot = bot
         self.roles_file_path = data_path("JSON/rolesbadges.json")
@@ -15,8 +25,121 @@ class AutoRoleUpdater(commands.Cog):
         self.server_data = self.load_server_data()
         self.verified_role_id = 1277489459226738808
         self.awaiting_verification_role_id = 1248310200939581594
+        self._habbo_request_lock = asyncio.Lock()
+        self._next_habbo_request_at = 0.0
+        self._habbo_blocked_until = 0.0
+        self._habbo_request_interval = self.HABBO_INITIAL_REQUEST_INTERVAL
+        self._habbo_success_streak = 0
 
         self.update_roles_task.start()  # Start the automatic update task
+
+    def cog_unload(self):
+        """Stop the background loop when this cog is unloaded or reloaded."""
+        self.update_roles_task.cancel()
+
+    async def _wait_for_habbo_request_slot(self):
+        """Serialize and space Habbo API calls across every updater entry point."""
+        now = time.monotonic()
+        allowed_at = max(self._next_habbo_request_at, self._habbo_blocked_until)
+        if allowed_at > now:
+            await asyncio.sleep(allowed_at - now)
+
+        # Measure again because sleeping advances the monotonic clock.
+        self._next_habbo_request_at = time.monotonic() + self._habbo_request_interval
+
+    def _record_habbo_success(self):
+        """Cautiously speed up after a sustained run of successful requests."""
+        self._habbo_success_streak += 1
+        if self._habbo_success_streak < self.HABBO_SUCCESS_WINDOW:
+            return
+
+        previous_interval = self._habbo_request_interval
+        self._habbo_request_interval = max(
+            self.HABBO_MIN_REQUEST_INTERVAL,
+            self._habbo_request_interval * 0.8,
+        )
+        self._habbo_success_streak = 0
+        if self._habbo_request_interval != previous_interval:
+            print(
+                "Habbo API is healthy; request interval reduced to "
+                f"{self._habbo_request_interval:.2f}s."
+            )
+
+    def _record_habbo_rate_limit(self):
+        """Immediately slow future requests after Habbo reports a rate limit."""
+        self._habbo_request_interval = min(
+            self.HABBO_MAX_REQUEST_INTERVAL,
+            self._habbo_request_interval * 2,
+        )
+        # Require a complete success window before trying a faster rate again.
+        self._habbo_success_streak = 0
+
+    async def _defer_habbo_requests(self, delay):
+        """Apply a Retry-After delay globally, including concurrent join checks."""
+        self._habbo_blocked_until = max(
+            self._habbo_blocked_until,
+            time.monotonic() + delay,
+        )
+
+    async def _get_habbo_json(self, session, url):
+        """Fetch JSON with pacing and bounded retries for throttling/outages."""
+        for attempt in range(self.HABBO_MAX_ATTEMPTS):
+            # Keep the lock until the response is classified so a concurrent
+            # caller cannot slip through immediately after a 429 response.
+            async with self._habbo_request_lock:
+                await self._wait_for_habbo_request_slot()
+                try:
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            payload = await response.json()
+                            self._record_habbo_success()
+                            return payload
+
+                        if response.status == 429:
+                            # Honour Habbo's requested cooldown. If the header is absent
+                            # or malformed, exponential backoff prevents a retry storm.
+                            try:
+                                delay = max(float(response.headers.get("Retry-After", "")), 1.0)
+                            except (TypeError, ValueError):
+                                delay = min(2 ** attempt, 60)
+                            self._record_habbo_rate_limit()
+                            await self._defer_habbo_requests(delay)
+                            print(
+                                f"Habbo API rate limited; retrying in {delay:.1f}s "
+                                f"at a {self._habbo_request_interval:.2f}s interval."
+                            )
+                            continue
+
+                        if 500 <= response.status < 600:
+                            await self._defer_habbo_requests(min(2 ** attempt, 30))
+                            continue
+
+                        print(f"Habbo API request failed with HTTP {response.status}: {url}")
+                        return None
+                except (aiohttp.ClientError, asyncio.TimeoutError) as error:
+                    delay = min(2 ** attempt, 30)
+                    await self._defer_habbo_requests(delay)
+                    print(f"Habbo API request failed ({error}); retrying in {delay}s.")
+
+        print(f"Habbo API request exhausted retries: {url}")
+        return None
+
+    async def _get_habbo_user_and_groups(self, session, habbo_name):
+        """Return the profile and groups while avoiding a duplicate profile call."""
+        encoded_name = quote(habbo_name, safe="")
+        profile = await self._get_habbo_json(
+            session,
+            f"https://www.habbo.com/api/public/users?name={encoded_name}",
+        )
+        habbo_id = profile.get("uniqueId") if isinstance(profile, dict) else None
+        if not habbo_id:
+            return None, None
+
+        groups = await self._get_habbo_json(
+            session,
+            f"https://www.habbo.com/api/public/users/{quote(str(habbo_id), safe='')}/groups",
+        )
+        return profile, groups if isinstance(groups, list) else None
 
     def load_roles_data(self):
         """Load the role mapping from JSON."""
@@ -60,37 +183,29 @@ class AutoRoleUpdater(commands.Cog):
                 if not member:
                     continue  # Skip if user is not found in the server
 
-                # Fetch Habbo data
-                user_url = f"https://www.habbo.com/api/public/users?name={habbo_name}"
-                async with session.get(user_url) as user_response:
-                    if user_response.status == 200:
-                        user_json = await user_response.json()
-                        habbo_id = user_json.get("uniqueId")
+                profile, groups_data = await self._get_habbo_user_and_groups(session, habbo_name)
+                if groups_data is None:
+                    continue
 
-                        groups_url = f"https://www.habbo.com/api/public/users/{habbo_id}/groups"
-                        async with session.get(groups_url) as groups_response:
-                            if groups_response.status == 200:
-                                groups_data = await groups_response.json()
+                # Reuse the profile motto instead of making a third Habbo API call.
+                added_roles, removed_roles = await self.assign_roles(
+                    member, groups_data, guild, profile.get("motto", "")
+                )
 
-                                # Assign roles only if needed
-                                added_roles, removed_roles = await self.assign_roles(member, groups_data, guild)
+                if added_roles is None and removed_roles is None:
+                    continue
 
-                                # Skip logging or updating if no changes are needed
-                                if added_roles is None and removed_roles is None:
-                                    continue
+                log_channel = guild.get_channel(1248316058520260713)  # Replace with your log channel ID
+                if log_channel:
+                    embed = discord.Embed(title="Roles Updated", color=discord.Color.green())
+                    embed.add_field(name="User", value=f"{member.mention}", inline=False)
+                    if added_roles:
+                        embed.add_field(name="Added Roles", value="\n".join(added_roles), inline=False)
+                    if removed_roles:
+                        embed.add_field(name="Removed Roles", value="\n".join(removed_roles), inline=False)
+                    await log_channel.send(embed=embed)
 
-                                # Log role updates if they occurred
-                                log_channel = guild.get_channel(1248316058520260713)  # Replace with your log channel ID
-                                if log_channel:
-                                    embed = discord.Embed(title="Roles Updated", color=discord.Color.green())
-                                    embed.add_field(name="User", value=f"{member.mention}", inline=False)
-                                    if added_roles:
-                                        embed.add_field(name="Added Roles", value="\n".join(added_roles), inline=False)
-                                    if removed_roles:
-                                        embed.add_field(name="Removed Roles", value="\n".join(removed_roles), inline=False)
-                                    await log_channel.send(embed=embed)
-
-    async def assign_roles(self, member, groups_data, guild):
+    async def assign_roles(self, member, groups_data, guild, motto=""):
         """
         Assign roles based on Habbo groups:
         - EmployeeRoles: assign ONLY the single highest role (based on JSON order).
@@ -163,26 +278,8 @@ class AutoRoleUpdater(commands.Cog):
         roles_to_remove = (current_roles - expected_roles) & valid_role_ids
         roles_to_remove -= roles_to_add  # avoid race if role is both in add/remove due to timing
 
-        # Motto guard for CDA removal
-        # Get Habbo name from server_data
-        habbo_name = None
-        for entry in self.server_data.get("verified_users", []):
-            if int(entry.get("user_id", 0)) == member.id:
-                habbo_name = entry.get("habbo")
-                break
-
-        motto = ""
-        if habbo_name:
-            try:
-                async with aiohttp.ClientSession() as session:
-                    user_url = f"https://www.habbo.com/api/public/users?name={habbo_name}"
-                    async with session.get(user_url) as response:
-                        if response.status == 200:
-                            user_json = await response.json()
-                            motto = user_json.get("motto", "")
-            except Exception:
-                motto = ""
-
+        # Preserve the CDA umbrella role when the already-fetched profile motto
+        # identifies the member as CDA; no extra API request is necessary here.
         if cda_employee_role_id in roles_to_remove and "cda" in motto.lower():
             roles_to_remove.remove(cda_employee_role_id)
 
@@ -245,20 +342,13 @@ class AutoRoleUpdater(commands.Cog):
 
         # 3) give all other appropriate roles immediately
         async with aiohttp.ClientSession() as session:
-            # replicated from update_roles_task ? get Habbo groups
-            user_url = f"https://www.habbo.com/api/public/users?name={entry['habbo']}"
-            async with session.get(user_url) as r:
-                if r.status != 200:
-                    return
-                habbo_id = (await r.json()).get("uniqueId")
-
-            groups_url = f"https://www.habbo.com/api/public/users/{habbo_id}/groups"
-            async with session.get(groups_url) as r:
-                if r.status != 200:
-                    return
-                groups_data = await r.json()
-
-        await self.assign_roles(member, groups_data, guild)
+            profile, groups_data = await self._get_habbo_user_and_groups(
+                session, entry["habbo"]
+            )
+        if groups_data is not None:
+            await self.assign_roles(
+                member, groups_data, guild, profile.get("motto", "")
+            )
 
     @update_roles_task.before_loop
     async def before_update_roles_task(self):
