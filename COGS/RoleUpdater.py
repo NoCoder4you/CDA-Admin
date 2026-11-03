@@ -30,6 +30,7 @@ class AutoRoleUpdater(commands.Cog):
         self._habbo_blocked_until = 0.0
         self._habbo_request_interval = self.HABBO_INITIAL_REQUEST_INTERVAL
         self._habbo_success_streak = 0
+        self._member_role_locks = {}
 
         self.update_roles_task.start()  # Start the automatic update task
 
@@ -165,47 +166,71 @@ class AutoRoleUpdater(commands.Cog):
                 return {"verified_users": []}
         return {"verified_users": []}
 
-    @tasks.loop(minutes=10)  # Runs every 10 minutes
-    async def update_roles_task(self):
-        """Automatically check and update roles for all verified users."""
-        guild = self.bot.get_guild(1248307521119060028)  # Replace with your server's ID
+    def _is_current_verified_name(self, user_id, habbo_name):
+        """Reject role checks started with a stale or unverified Habbo name."""
+        data = self.load_server_data()
+        return any(
+            str(user.get("user_id")) == str(user_id)
+            and user.get("habbo") == habbo_name
+            for user in data.get("verified_users", [])
+        )
 
-        if not guild:
-            print("Guild not found.")
-            return
+    async def update_member_roles(self, member, habbo_name, session=None):
+        """Refresh one member with RoleUpdater's normal group and role logic.
 
-        # An approved name change must be visible without reloading this cog.
-        self.server_data = self.load_server_data()
-        async with aiohttp.ClientSession() as session:
-            for user_data in self.server_data["verified_users"]:
-                user_id = int(user_data["user_id"])
-                habbo_name = user_data["habbo"]
+        Used by the scheduled task and immediately after a username approval.
+        The per-member lock prevents an older scheduled check from overriding
+        the result of a newer approved name change.
+        """
+        if session is None:
+            async with aiohttp.ClientSession() as session:
+                return await self.update_member_roles(member, habbo_name, session)
 
-                member = guild.get_member(user_id)
-                if not member:
-                    continue  # Skip if user is not found in the server
+        lock = self._member_role_locks.setdefault(member.id, asyncio.Lock())
+        async with lock:
+            if not self._is_current_verified_name(member.id, habbo_name):
+                return False
 
-                profile, groups_data = await self._get_habbo_user_and_groups(session, habbo_name)
-                if groups_data is None:
-                    continue
+            profile, groups_data = await self._get_habbo_user_and_groups(
+                session, habbo_name
+            )
+            if groups_data is None:
+                return False
 
-                # Reuse the profile motto instead of making a third Habbo API call.
-                added_roles, removed_roles = await self.assign_roles(
-                    member, groups_data, guild, profile.get("motto", "")
-                )
+            # Approval can happen while an older API request is in flight.
+            if not self._is_current_verified_name(member.id, habbo_name):
+                return False
 
-                if added_roles is None and removed_roles is None:
-                    continue
-
-                log_channel = guild.get_channel(1248316058520260713)  # Replace with your log channel ID
+            added_roles, removed_roles = await self.assign_roles(
+                member, groups_data, member.guild, profile.get("motto", "")
+            )
+            if added_roles or removed_roles:
+                log_channel = member.guild.get_channel(1248316058520260713)
                 if log_channel:
                     embed = discord.Embed(title="Roles Updated", color=discord.Color.green())
-                    embed.add_field(name="User", value=f"{member.mention}", inline=False)
+                    embed.add_field(name="User", value=member.mention, inline=False)
                     if added_roles:
                         embed.add_field(name="Added Roles", value="\n".join(added_roles), inline=False)
                     if removed_roles:
                         embed.add_field(name="Removed Roles", value="\n".join(removed_roles), inline=False)
                     await log_channel.send(embed=embed)
+            return True
+
+    @tasks.loop(minutes=10)  # Runs every 10 minutes
+    async def update_roles_task(self):
+        """Automatically check and update roles for all verified users."""
+        guild = self.bot.get_guild(1248307521119060028)
+        if not guild:
+            print("Guild not found.")
+            return
+
+        self.server_data = self.load_server_data()
+        async with aiohttp.ClientSession() as session:
+            for user_data in self.server_data["verified_users"]:
+                member = guild.get_member(int(user_data["user_id"]))
+                if member is None:
+                    continue
+                await self.update_member_roles(member, user_data["habbo"], session)
 
     async def assign_roles(self, member, groups_data, guild, motto=""):
         """
