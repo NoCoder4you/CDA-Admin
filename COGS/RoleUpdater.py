@@ -210,9 +210,9 @@ class AutoRoleUpdater(commands.Cog):
                     embed = discord.Embed(title="Roles Updated", color=discord.Color.green())
                     embed.add_field(name="User", value=member.mention, inline=False)
                     if added_roles:
-                        embed.add_field(name="Added Roles", value="\\n".join(added_roles), inline=False)
+                        embed.add_field(name="Added Roles", value="\n".join(added_roles), inline=False)
                     if removed_roles:
-                        embed.add_field(name="Removed Roles", value="\\n".join(removed_roles), inline=False)
+                        embed.add_field(name="Removed Roles", value="\n".join(removed_roles), inline=False)
                     await log_channel.send(embed=embed)
             return True
 
