@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from unittest.mock import patch
 
 from COGS.RoleUpdater import AutoRoleUpdater
 
@@ -102,6 +103,53 @@ class RoleUpdaterHabboApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([{"id": "group-1"}], groups)
         self.assertIn("name%20with%2Fslash", session.urls[0])
         self.assertEqual(2, len(session.urls))
+
+
+class RoleUpdaterScheduleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ten_minute_countdown_starts_after_scan_finishes(self):
+        updater = AutoRoleUpdater.__new__(AutoRoleUpdater)
+        scan_started = asyncio.Event()
+        finish_scan = asyncio.Event()
+        delays = []
+
+        async def fake_scan():
+            scan_started.set()
+            await finish_scan.wait()
+
+        async def record_sleep(seconds):
+            delays.append(seconds)
+
+        updater._check_all_verified_roles = fake_scan
+        with patch("COGS.RoleUpdater.asyncio.sleep", side_effect=record_sleep):
+            cycle = asyncio.create_task(AutoRoleUpdater.update_roles_task.coro(updater))
+            await scan_started.wait()
+            self.assertEqual([], delays)  # No new countdown while the scan runs.
+            finish_scan.set()
+            await cycle
+
+        self.assertEqual([600], delays)
+
+    async def test_cancellation_interrupts_scan_without_sleeping(self):
+        updater = AutoRoleUpdater.__new__(AutoRoleUpdater)
+        scan_started = asyncio.Event()
+        delays = []
+
+        async def unfinished_scan():
+            scan_started.set()
+            await asyncio.Event().wait()
+
+        async def record_sleep(seconds):
+            delays.append(seconds)
+
+        updater._check_all_verified_roles = unfinished_scan
+        with patch("COGS.RoleUpdater.asyncio.sleep", side_effect=record_sleep):
+            cycle = asyncio.create_task(AutoRoleUpdater.update_roles_task.coro(updater))
+            await scan_started.wait()
+            cycle.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await cycle
+
+        self.assertEqual([], delays)
 
 
 if __name__ == "__main__":
