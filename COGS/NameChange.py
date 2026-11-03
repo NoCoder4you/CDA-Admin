@@ -19,6 +19,27 @@ def save_server_json(data):
     with open(SERVER_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
+def apply_approved_name_change(user_id: int, current_username: str, new_username: str):
+    """Persist approval only for an existing, unchanged verification record."""
+    data = load_server_json()
+    entry = next(
+        (user for user in data.get("verified_users", [])
+         if str(user.get("user_id")) == str(user_id)),
+        None,
+    )
+    if entry is None:
+        raise ValueError("This user is no longer verified. The request was not approved.")
+    if entry.get("habbo") != current_username:
+        raise ValueError(
+            "The user's verified Habbo name has changed since this request was made. "
+            "Please submit a fresh name change request."
+        )
+
+    entry["habbo"] = new_username
+    save_server_json(data)
+    return data
+
+
 def sync_server_data(bot, data):
     for cog in bot.cogs.values():
         server_data_path = getattr(cog, "server_data_path", None)
@@ -70,7 +91,10 @@ class NameChangeView(ui.View):
         else:
             embed.set_footer(text="Pending Approval")
 
-        await interaction.response.edit_message(embed=embed, view=None)
+        if interaction.response.is_done():
+            await interaction.message.edit(embed=embed, view=None)
+        else:
+            await interaction.response.edit_message(embed=embed, view=None)
         self.stop()
 
     @ui.button(label="Approve", style=discord.ButtonStyle.success)
@@ -85,19 +109,41 @@ class NameChangeView(ui.View):
             )
             return
 
-        # Attempt to change nickname in the guild
+        # Acknowledge the interaction before filesystem and Discord operations.
+        await interaction.response.defer()
+
+        try:
+            data = apply_approved_name_change(
+                self.user_id, self.current_username, self.new_username
+            )
+        except ValueError as error:
+            await interaction.followup.send(str(error), ephemeral=True)
+            return
+        except (OSError, json.JSONDecodeError):
+            logger.exception("Failed to persist name change for user %s", self.user_id)
+            await interaction.followup.send(
+                "The name change could not be saved. The request is still pending; "
+                "please try approving it again.",
+                ephemeral=True,
+            )
+            return
+
+        sync_server_data(interaction.client, data)
+
+        # A nickname edit may fail due to Discord role hierarchy or permissions.
+        # It must not prevent the saved verification record from being updated.
         guild = interaction.guild
         if guild:
             member = guild.get_member(self.user_id)
             if member is None:
                 try:
                     member = await guild.fetch_member(self.user_id)
-                except Exception:
+                except discord.HTTPException:
                     member = None
             if member:
                 try:
                     await member.edit(nick=self.new_username)
-                except Exception:
+                except discord.HTTPException:
                     logger.warning(
                         "Failed to update nickname for user %s in guild %s",
                         self.user_id,
@@ -115,40 +161,6 @@ class NameChangeView(ui.View):
                 "No guild context for name change approval; nickname not updated for user %s",
                 self.user_id,
             )
-
-        data = load_server_json()
-        verified_users = data.setdefault("verified_users", [])
-        found = False
-        for user in verified_users:
-            if str(user.get("user_id")) == str(self.user_id):
-                user["habbo"] = self.new_username
-                found = True
-                break
-        if not found:
-            verified_users.append({"user_id": str(self.user_id), "habbo": self.new_username})
-        try:
-            save_server_json(data)
-        except Exception:
-            logger.error(
-                "Failed to update server.json for user %s",
-                self.user_id,
-                exc_info=True,
-            )
-        else:
-            sync_server_data(interaction.client, data)
-
-        data = load_server_json()
-        verified_users = data.setdefault("verified_users", [])
-        found = False
-        for user in verified_users:
-            if str(user.get("user_id")) == str(self.user_id):
-                user["habbo"] = self.new_username
-                found = True
-                break
-        if not found:
-            verified_users.append({"user_id": str(self.user_id), "habbo": self.new_username})
-        save_server_json(data)
-        sync_server_data(interaction.client, data)
 
         await self.update_embed(interaction, "approved", interaction.user)
 
