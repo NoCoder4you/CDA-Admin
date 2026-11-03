@@ -303,7 +303,7 @@ class HabboVerifyCog(commands.Cog):
                                     embed.set_thumbnail(
                                         url=f"https://www.habbo.com/habbo-imaging/avatarimage?user={habbo}&direction=3&head_direction=3&gesture=nor&action=wav&size=l"
                                     )
-                                    await verification_channel.send(embed=embed)
+                                    await verification_channel.send(embed=embed, delete_after=600)
 
                                 # Log verification success in the banlogs channel
                                 if banlogs_channel:
