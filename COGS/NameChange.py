@@ -133,6 +133,7 @@ class NameChangeView(ui.View):
         # A nickname edit may fail due to Discord role hierarchy or permissions.
         # It must not prevent the saved verification record from being updated.
         guild = interaction.guild
+        member = None
         if guild:
             member = guild.get_member(self.user_id)
             if member is None:
@@ -162,7 +163,35 @@ class NameChangeView(ui.View):
                 self.user_id,
             )
 
+        # Reconcile this member's roles immediately using the same RoleUpdater
+        # logic as the scheduled task, after the new Habbo name is persisted.
+        role_updater = interaction.client.get_cog("AutoRoleUpdater")
+        roles_checked = False
+        if member is not None and role_updater is not None:
+            try:
+                roles_checked = await role_updater.update_member_roles(
+                    member, self.new_username
+                )
+            except Exception:
+                logger.exception(
+                    "Immediate role check failed after username change for user %s",
+                    self.user_id,
+                )
+        else:
+            logger.warning(
+                "Could not immediately check roles after name change for user %s "
+                "(member found: %s, RoleUpdater loaded: %s)",
+                self.user_id, member is not None, role_updater is not None,
+            )
+
         await self.update_embed(interaction, "approved", interaction.user)
+        if not roles_checked:
+            await interaction.followup.send(
+                "The username change was approved, but the immediate role check "
+                "could not complete. RoleUpdater will try again on its next "
+                "scheduled check if it is running.",
+                ephemeral=True,
+            )
 
     @ui.button(label="Reject", style=discord.ButtonStyle.danger)
     async def reject(self, interaction: Interaction, button: ui.Button):
