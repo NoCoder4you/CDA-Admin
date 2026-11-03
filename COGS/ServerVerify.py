@@ -19,9 +19,150 @@ class HabboVerifyCog(commands.Cog):
         self.roles_data = self.load_roles_data()
         self.server_data_path = data_path("JSON/server.json")
         self.verification_file_path = data_path("JSON/verification_codes.json")
+        self.verification_prompts_path = data_path("JSON/verification_prompts.json")
         self.server_data = self.load_server_data()
         self.verification_data = self.load_verification_codes()
         self.cleanup_task.start()
+
+
+    def _load_verification_prompts(self):
+        """Load message IDs so prompts can be removed after a bot restart."""
+        try:
+            with open(self.verification_prompts_path, "r", encoding="utf-8") as file:
+                prompts = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return prompts if isinstance(prompts, dict) else {}
+
+    def _save_verification_prompts(self, prompts):
+        with open(self.verification_prompts_path, "w", encoding="utf-8") as file:
+            json.dump(prompts, file, indent=4)
+
+    async def _delete_verification_prompt(self, member: discord.Member):
+        """Delete this member's join instructions, including after a restart."""
+        prompts = self._load_verification_prompts()
+        key = f"{member.guild.id}:{member.id}"
+        recorded = prompts.get(key)
+        if not isinstance(recorded, dict):
+            return
+
+        try:
+            channel_id = int(recorded["channel_id"])
+            message_id = int(recorded["message_id"])
+        except (KeyError, TypeError, ValueError):
+            return
+
+        channel = member.guild.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                return
+
+        try:
+            await channel.get_partial_message(message_id).delete()
+        except discord.NotFound:
+            pass  # It was already removed; clear the saved message ID.
+        except (discord.Forbidden, discord.HTTPException):
+            return  # Keep the ID to allow another deletion attempt later.
+
+        prompts.pop(key, None)
+        try:
+            self._save_verification_prompts(prompts)
+        except OSError as exc:
+            print(f"Could not update verification prompt records: {exc}")
+
+    async def _verify_command_mention(self, guild: discord.Guild) -> str:
+        """Resolve Discord's registered slash-command ID for a clickable mention."""
+        for scope in (None, guild):
+            try:
+                if scope is None:
+                    registered = await self.bot.tree.fetch_commands()
+                else:
+                    registered = await self.bot.tree.fetch_commands(guild=scope)
+            except discord.HTTPException:
+                continue
+
+            for command in registered:
+                if command.name == "verify":
+                    return f"</verify:{command.id}>"
+        return "/verify"
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        """Give unverified new members instructions in the configured channel."""
+        if member.bot:
+            return
+
+        # Read from disk on each join to include verifications and approved renames.
+        server_data = self.load_server_data()
+        if any(
+            isinstance(user, dict) and str(user.get("user_id")) == str(member.id)
+            for user in server_data.get("verified_users", [])
+        ):
+            return
+
+        try:
+            channel_id = int(server_data.get("channels", {}).get("verification"))
+        except (ValueError, TypeError):
+            return
+        channel = member.guild.get_channel(channel_id)
+        if channel is None:
+            return
+
+        # A member might have left and joined again without verifying.
+        await self._delete_verification_prompt(member)
+        verify_mention = await self._verify_command_mention(member.guild)
+        embed = discord.Embed(
+            title="Verify Your Habbo Account",
+            description="Welcome! Please verify your Habbo account to access the server.",
+            color=discord.Color.blue(),
+        )
+        embed.add_field(
+            name="Step 1",
+            value=f"Click here ---> {verify_mention} <--- and type in your username!",
+            inline=False,
+        )
+        embed.add_field(
+            name="Step 2",
+            value="Copy the given code into your Habbo Motto",
+            inline=False,
+        )
+        embed.add_field(
+            name="Step 3",
+            value="Repeat Step 1",
+            inline=False,
+        )
+        embed.add_field(
+            name="Need Help?",
+            value=(
+                "If the code does not work, double-check the spelling in your motto "
+                "and ask staff for help in this channel."
+            ),
+            inline=False,
+        )
+
+        try:
+            # Mention in the message body to notify this specific member.
+            message = await channel.send(
+                content=member.mention,
+                embed=embed,
+                allowed_mentions=discord.AllowedMentions(
+                    users=[member], roles=False, everyone=False
+                ),
+            )
+        except (discord.Forbidden, discord.HTTPException):
+            return
+
+        prompts = self._load_verification_prompts()
+        prompts[f"{member.guild.id}:{member.id}"] = {
+            "channel_id": channel.id,
+            "message_id": message.id,
+        }
+        try:
+            self._save_verification_prompts(prompts)
+        except OSError as exc:
+            print(f"Could not save verification prompt for {member.id}: {exc}")
 
     def load_roles_data(self):
         if os.path.exists(self.roles_file_path):
@@ -222,7 +363,8 @@ class HabboVerifyCog(commands.Cog):
 
             # Check if the user is already verified
             for verified_user in self.server_data["verified_users"]:
-                if verified_user["user_id"] == user_id:
+                if str(verified_user["user_id"]) == user_id:
+                    await self._delete_verification_prompt(interaction.user)
                     embed = discord.Embed(
                         title="Already Verified \u2705",
                         description=f"**Verified:** `{verified_user['habbo']}`",
@@ -283,6 +425,7 @@ class HabboVerifyCog(commands.Cog):
                                 del self.verification_data["verification_data"][user_id]
                                 self.save_server_data()
                                 self.save_verification_codes()
+                                await self._delete_verification_prompt(interaction.user)
 
                                 guild = interaction.guild
                                 verification_channel = guild.get_channel(verification_channel_id)
