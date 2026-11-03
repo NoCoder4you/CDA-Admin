@@ -216,8 +216,14 @@ class AutoRoleUpdater(commands.Cog):
                     await log_channel.send(embed=embed)
             return True
 
-    @tasks.loop(minutes=10)  # Runs every 10 minutes
+    @tasks.loop(seconds=0)
     async def update_roles_task(self):
+        """Finish each full scan, then wait ten minutes before starting another."""
+        await self._check_all_verified_roles()
+        # A long scan must not trigger an immediate catch-up run.
+        await asyncio.sleep(10 * 60)
+
+    async def _check_all_verified_roles(self):
         """Automatically check and update roles for all verified users."""
         guild = self.bot.get_guild(1248307521119060028)
         if not guild:
