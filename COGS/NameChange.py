@@ -116,9 +116,6 @@ class NameChangeView(ui.View):
             data = apply_approved_name_change(
                 self.user_id, self.current_username, self.new_username
             )
-        except ValueError as error:
-            await interaction.followup.send(str(error), ephemeral=True)
-            return
         except (OSError, json.JSONDecodeError):
             logger.exception("Failed to persist name change for user %s", self.user_id)
             await interaction.followup.send(
@@ -126,6 +123,9 @@ class NameChangeView(ui.View):
                 "please try approving it again.",
                 ephemeral=True,
             )
+            return
+        except ValueError as error:
+            await interaction.followup.send(str(error), ephemeral=True)
             return
 
         sync_server_data(interaction.client, data)
