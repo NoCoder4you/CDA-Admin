@@ -19,10 +19,7 @@ DONATOR_COLORS = {
     "None": 0x2C2F33  # Discord Default Dark Gray
 }
 
-# Load server.json and rolesbadges.json
-with open(data_path("JSON/server.json"), "r", encoding="utf-8") as server_file:
-    server_data = json.load(server_file)
-
+# Role mappings can be cached; verification records must be loaded per request.
 with open(data_path("JSON/rolesbadges.json"), "r", encoding="utf-8") as roles_file:
     roles_data = json.load(roles_file)
 
@@ -32,9 +29,11 @@ class UserInfoCog(commands.Cog):
 
     def get_habbo_username(self, discord_id: str):
         """Find Habbo username for a given Discord user ID."""
+        with open(data_path("JSON/server.json"), "r", encoding="utf-8") as server_file:
+            server_data = json.load(server_file)
         for user in server_data.get("verified_users", []):
-            if user["user_id"] == discord_id:
-                return user["habbo"]
+            if str(user.get("user_id")) == str(discord_id):
+                return user.get("habbo")
         return None
 
     def get_highest_role(self, discord_member: discord.Member, role_category: str):
@@ -78,7 +77,13 @@ class UserInfoCog(commands.Cog):
         await interaction.response.defer()
 
         # Get Habbo username
-        habbo_name = self.get_habbo_username(str(member.id))
+        try:
+            habbo_name = self.get_habbo_username(str(member.id))
+        except (OSError, json.JSONDecodeError):
+            await interaction.followup.send(
+                "The verification records could not be read right now. Please try again later."
+            )
+            return
         if not habbo_name:
             embed = discord.Embed(
                 title="User Not Verified \u274C",

@@ -174,6 +174,8 @@ class AutoRoleUpdater(commands.Cog):
             print("Guild not found.")
             return
 
+        # An approved name change must be visible without reloading this cog.
+        self.server_data = self.load_server_data()
         async with aiohttp.ClientSession() as session:
             for user_data in self.server_data["verified_users"]:
                 user_id = int(user_data["user_id"])
@@ -314,7 +316,8 @@ class AutoRoleUpdater(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         """Runs the moment someone joins the guild."""
-        # Are they in server.json ? verified_users?
+        # Rejoining members must use the current verified Habbo name.
+        self.server_data = self.load_server_data()
         entry = next((
             u for u in self.server_data.get("verified_users", [])
             if int(u["user_id"]) == member.id
