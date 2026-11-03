@@ -213,6 +213,8 @@ class HabboVerifyCog(commands.Cog):
             await interaction.response.defer(ephemeral=True)
 
             user_id = str(interaction.user.id)
+            # Reload verification records changed by the name-change approval cog.
+            self.server_data = self.load_server_data()
             verification_channel_id = self.server_data["channels"].get("verification")
             banlogs_channel_id = self.server_data["channels"].get("banlogs")
             verified_role_id = 1277489459226738808  # Replace with actual Verified role ID
@@ -261,6 +263,18 @@ class HabboVerifyCog(commands.Cog):
                             habbo_name = json_data.get("name")
 
                             if motto and verification_code in motto:
+                                # Re-read after Habbo API awaits so an old in-memory
+                                # snapshot cannot overwrite an approved username change.
+                                self.server_data = self.load_server_data()
+                                if any(
+                                    str(user.get("user_id")) == user_id
+                                    for user in self.server_data["verified_users"]
+                                ):
+                                    await interaction.followup.send(
+                                        "This Discord account has already been verified.",
+                                        ephemeral=True,
+                                    )
+                                    return
                                 # User verified successfully
                                 self.server_data["verified_users"].append({
                                     "user_id": user_id,
